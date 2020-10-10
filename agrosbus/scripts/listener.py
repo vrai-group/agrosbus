@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 #Licensed under the Apache License, Version 2.0  license. See LICENSE file in the project root for full license information.
-# maintainer: Luigi Di Marcantonio agrosbus Project univpm
+# maintainer: Luigi Di Marcantonio agrosbus Project UNIVPM
 
 import sys
 import rospy
-from agrosbuspkg.msg import CANFrameData #info about packet from arduino
+from agrosbus.msg import CANFrameData #info about packet from arduino
 import datetime
 
 #settings for topic to subscribe and Publish
