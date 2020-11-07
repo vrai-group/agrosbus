@@ -12,21 +12,18 @@
  //_____________________________________
 #define DHTPIN A2 //temperature and humidity sensor PINs
 #define DHTTYPE DHT11 //temperature and humidity sensor type
+#define NODE_ID 0x12
+
 DHT_Unified dht(DHTPIN, DHTTYPE); //Type and PIN 
 UltraSonicDistanceSensor distanceSensor(A4, A3); //Ultrasonic distance sensor used PIN
-
 void encodeUINT16(float value, int digits, unsigned short int * valueDST);
 
-void encodeUINT16(float value, int digits, unsigned short int * valueDST) {
-  * valueDST = (unsigned short int)(value * pow(10, digits));
-  return;
-}
+//union to manage data encoding
 
 typedef union sensorS {
   unsigned char buf[2];
   unsigned short int value;
-}
-sensorS;
+}sensorS;
 
 sensorS Humidity;
 sensorS Humidity_Ext;
@@ -47,6 +44,13 @@ float temperature_value = 0;
 float humidity_value = 0;
 float radar_value = 0;
 
+//function to encode data
+void encodeUINT16(float value, int digits, unsigned short int * valueDST) {
+  * valueDST = (unsigned short int)(value * pow(10, digits));
+  return;
+}
+
+//setup function or arduino
 void setup() {
   Serial.begin(9600);
   while (!Serial);
@@ -74,6 +78,7 @@ void setup() {
   }
 }
 
+//callback function to manage incoming CAN-bus frame
 void receiverCallback(int packetSize) {
   Serial.print("\n\n\n");
   Serial.print("ID: ");
@@ -81,16 +86,21 @@ void receiverCallback(int packetSize) {
   Serial.print("  LENGHT: ");
   Serial.print(packetSize);
   Serial.print("  VALUES: ");
+  if(CAN.packetId() != NODE_ID) //messege not of interest
+    return; 
   //get raw bytes
   for (int i = 0; i < packetSize; i++) {
     int l = CAN.read();
     Serial.print(l, DEC);
     Serial.print(" | ");
-    if (l == 0) digitalWrite(LED_BUILTIN, LOW);
-    if (l == 1) digitalWrite(LED_BUILTIN, HIGH);
+    if (l == 0) 
+      digitalWrite(LED_BUILTIN, LOW);
+    else if (l == 1) 
+      digitalWrite(LED_BUILTIN, HIGH);
   }
 }
 
+//function to send frame on CAN-bus
 void sender(int id, unsigned char * data, unsigned short int len) {
   int i = 0;
   CAN.beginPacket(id);
@@ -101,6 +111,7 @@ void sender(int id, unsigned char * data, unsigned short int len) {
   CAN.endPacket();
 }
 
+//function to send frame on CAN-bus with extended format
 void extended_packet_sender(int id, unsigned char * data, unsigned short int len) {
   int i = 0;
   CAN.beginExtendedPacket(id);
@@ -111,6 +122,7 @@ void extended_packet_sender(int id, unsigned char * data, unsigned short int len
   CAN.endPacket();
 }
 
+//function to manage the temperature sensor
 void temperature_sensor() {
   sensors_event_t event;
   dht.temperature().getEvent( & event);
@@ -127,6 +139,7 @@ void temperature_sensor() {
   }
 }
 
+//function to manage the temperature sensor sending with extended format
 void extended_temperature_sensor() {
   sensors_event_t event;
   dht.temperature().getEvent( & event);
@@ -140,10 +153,10 @@ void extended_temperature_sensor() {
     Serial.print(Temperature.value);
     extended_packet_sender(0x12, Temperature.buf, 2); //send extended packet with temperature data sensor
     Serial.println(" Temperature data sent");
-
   }
 }
 
+//function to manage humidity sensor
 void humidity_sensor() {
   sensors_event_t event;
   dht.humidity().getEvent( & event);
@@ -157,10 +170,10 @@ void humidity_sensor() {
     Serial.print(Humidity.value);
     sender(0x13, Humidity.buf, 2);
     Serial.println(" Humidity data packet sent ");
-
   }
 }
 
+//function to manage humidity sensor sending with extended format
 void extended_humidity_sensor() {
   sensors_event_t event;
   dht.humidity().getEvent( & event);
@@ -177,6 +190,7 @@ void extended_humidity_sensor() {
   }
 }
 
+//function to manage distance sensor
 void anti_collision_radar() {
   double distance = distanceSensor.measureDistanceCm();
   Serial.println(distance);
@@ -184,12 +198,7 @@ void anti_collision_radar() {
   sender(0x14, Radar.buf, 2);
 }
 
-int check_changed_data(int previous_data, int new_data) {
-  if (previous_data == new_data)
-    return 0;
-  return 1;
-}
-
+//function to send data only on changed values
 void send_if_new_data_are_changed() {
   sensors_event_t event;
   dht.temperature().getEvent( & event);
@@ -208,9 +217,9 @@ void send_if_new_data_are_changed() {
     anti_collision_radar();
     radar_value = distanceSensor.measureDistanceCm();
   }
-
 }
 
+//funtion to manage random scheduling for data sending
 int random_() {
   int v1 = rand() % 3;
   int v2 = rand() % 6;
@@ -246,10 +255,10 @@ int random_() {
   }
 }
 
+//loop Arduino function
 void loop() {
-
   if (simulation_type > 2) {
-    Serial.println(" =Selected simulation type wrong");
+    Serial.println("Selected simulation type is wrong...");
     delay(10000);
   }
   if (simulation_type == 0) {
@@ -264,7 +273,6 @@ void loop() {
   }
   if (simulation_type == 1) {
     send_if_new_data_are_changed();
-
   }
   if (simulation_type == 2)
     random_();

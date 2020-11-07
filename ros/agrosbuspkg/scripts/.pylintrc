@@ -1,0 +1,2 @@
+[MESSAGES CONTROL]
+ignored-modules=std_msgs,rospy,agrosbuspkg

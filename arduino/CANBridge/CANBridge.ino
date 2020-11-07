@@ -20,8 +20,7 @@
 #define TIME_HEADER  'T'   // Header tag for serial time sync message
 #define TIME_REQUEST  7    // ASCII bell character requests a time sync message
 #define BUFFER_LENGHT 64
-
-int l=0;
+#define DEFAULT_TIME = 1357041600 // Jan 1 2013
 
 ros::NodeHandle nh;
 agrosbuspkg::CANFrameData ros_pkt;
@@ -29,12 +28,9 @@ std_msgs::UInt8 int_value;
 
 long long int epoch_at_start = 0; //time to set epoch and millis
 
-
 //define where to publish
 ros::Publisher fromarduino("fromarduino", &ros_pkt);
 ros::Publisher uint8test("uint8test", &int_value);
-
-
 
 //info of the two circulare queue
 //from arduino to ros is buff_toROS
@@ -57,12 +53,9 @@ unsigned char tailC = 0;
 unsigned int countC = 0;
 raw_data buff_toCAN[BUFFER_LENGHT];
 
-void processSyncMessage(){
-  unsigned long pctime;
-  const unsigned long DEFAULT_TIME = 1357041600; // Jan 1 2013
-
+void processSyncMessage(){   
   if(Serial.find(TIME_HEADER)) {
-     pctime = Serial.parseInt();
+     unsigned long pctime = Serial.parseInt();
      if(pctime >= DEFAULT_TIME) { // check the integer is a valid time (greater than Jan 1 2013)
        setTime(pctime); // Sync Arduino clock to the time received on the serial port
        epoch_at_start = pctime;
@@ -76,10 +69,9 @@ time_t requestSync()
   return 0; // the time will be sent later in response to serial mesg
 }
 
-
 //SET CAN SPEED
 //Function to call when can't start CAN communication at 500Kbps
-void set_can_speed()
+void setCANSpeed()
 {
   Serial.println("Trying 1000Kbps..");
   if (!CAN.begin(1000E3)) {
@@ -123,9 +115,8 @@ void set_can_speed()
 
 //FUNCTIONS TO ADD packets to the tails
 
-
 //ARDUINO -> ROS
-void AddOneToROStail(int packetSize){
+void addOneToROStail(int packetSize){
   
   int i = 0;
 
@@ -181,11 +172,11 @@ void AddOneToCANtail(const agrosbuspkg::CANFrameData& can_pkt){
 //FUNCTIONS TO send packets to ros or can network (Sender Board)
 
 //TO ROS TOPIC /fromarduino
-void PublishOneToROS(){
+void publishOneToROS(){
   
     ros_pkt.id = buff_toROS[headR].id;
     ros_pkt.timestamp = buff_toROS[headR].timestamp;
-    l = buff_toROS[headR].len;
+    int l = buff_toROS[headR].len;
     ros_pkt.lenght = l;
 
     //define lenght and assign pointer
@@ -204,8 +195,7 @@ void PublishOneToROS(){
 }
 
 //TO Sender board
-
-void PublishOneToCAN(){
+void publishOneToCAN(){
 
   CAN.beginPacket(buff_toCAN[tailC].id);
   int l = buff_toCAN[tailC].len;
@@ -233,11 +223,8 @@ void setup() {
   
   //start the serial communication
   Serial.begin(115200);
-
   
   while (!Serial); //wait until ready
-
-
   //Setting the CAN connection
   Serial.print("CAN Receiver...");
   CAN.begin(500E3);
@@ -245,10 +232,9 @@ void setup() {
   if (!CAN.begin(500E3)){
       Serial.println("Starting CAN 500Kbps failed!");
       Serial.println("Trying other CAN speed:");
-      set_can_speed(); //if 500 Kbps not work
+      setCANSpeed(); //if 500 Kbps not work
   }
 
-  
   setSyncProvider(requestSync);  //set function to callback when sync required
   Serial.println("Waiting for time sync message");
   Serial.println("Send T+epoch");
@@ -269,7 +255,7 @@ void setup() {
 
   //Set call back function for each CAN packet received
   //Each time a CAN packet comes add_one() is called
-  CAN.onReceive(AddOneToROStail);
+  CAN.onReceive(addOneToROStail);
 }
 
 void loop() {
@@ -277,11 +263,11 @@ void loop() {
    
    //cleaning the toROS queue
    while(headR != tailR){
-     PublishOneToROS();
+     publishOneToROS();
    }
    //cleaning the toCAN queue
    
    while(headC != tailC){
-     PublishOneToCAN();
+     publishOneToCAN();
    }
 }
